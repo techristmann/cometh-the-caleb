@@ -23,7 +23,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow pillow-heif
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: translations-${{ github.run_id }}
+          restore-keys: translations-
       - run: python build.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -172,6 +172,18 @@ def web_name(name):
 
 
 # ---------- dates ----------
+def parse_time(s):
+    """'16:12', '04:12', '4:12 am', '4:12pm' -> (16, 12). None if unreadable."""
+    m = re.match(r"^\s*(\d{1,2})[:h.](\d{2})\s*([ap])?\.?\s*m?\.?\s*$", str(s or ""), re.I)
+    if not m:
+        return None
+    h, mi = int(m.group(1)), int(m.group(2))
+    if m.group(3):
+        h = h % 12 + (12 if m.group(3).lower() == "p" else 0)
+    return (h, mi) if h < 24 and mi < 60 else None
+
+
+
 PT_DAYS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
 PT_MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
              "agosto", "setembro", "outubro", "novembro", "dezembro"]
@@ -203,25 +215,33 @@ def render(cfg, posts, photo_sizes):
 
     a = cfg.get("arrival", {})
     public_cfg = {k: cfg.get(k) for k in ("due_date", "arrived", "supabase_url", "supabase_anon_key")}
+    public_cfg["arrival"] = {"date": a.get("date", ""), "time": a.get("time", "")}
 
     if cfg.get("arrived"):
         msg = a.get("message") or "He's here!"
         msg_pt = "Ele chegou!" if msg.strip().lower() in ("he's here!", "he's here") else translate(msg)
-        date_li = ""
+        lis = []
         if a.get("date"):
-            date_li = f"<li>{t(e(fmt_date(a['date'])), e(fmt_date(a['date'], 'pt')))}</li>"
-        other = "".join(f"<li>{e(x)}</li>" for x in (a.get("time"), a.get("weight"), a.get("length")) if x)
-        stats = f'<ul class="stats">{date_li}{other}</ul>' if (date_li or other) else ""
-        hero = f"""<section class="banner arrived">
+            lis.append(t(e(fmt_date(a['date'])), e(fmt_date(a['date'], 'pt'))))
+        hm = parse_time(a.get("time"))
+        if hm:
+            h, m = hm
+            lis.append(t(f"{(h % 12) or 12}:{m:02d} {'AM' if h < 12 else 'PM'}", f"{h:02d}:{m:02d}"))
+        elif a.get("time"):
+            lis.append(e(a["time"]))
+        lis += [e(x) for x in (a.get("weight"), a.get("length")) if x]
+        stats = '<ul class="stats">' + "".join(f"<li>{x}</li>" for x in lis) + "</ul>" if lis else ""
+        hero = f"""<section class="banner arrived" id="arrived" title="Tap to celebrate again">
   {LEAVES}
   <h2>{t(e(msg), e(msg_pt))}</h2>
   <p class="name">{e(cfg.get('baby_name'))}</p>
   {stats}
+  <div class="winner" id="winner" hidden></div>
 </section>"""
     else:
         due = cfg.get("due_date", "")
         hero = f"""<section class="banner waiting">
-  <p class="eyebrow">{t("Coming soon", "Chegando em breve")}</p>
+  <p class="eyebrow">{t(e(cfg.get('baby_name')) + " is coming", e(cfg.get('baby_name')) + " está chegando")}</p>
   <div class="count"><span id="days">–</span><small id="days-label"></small></div>
   <p class="due">{t("Due " + e(fmt_date(due)), "Previsto para " + e(fmt_date(due, 'pt')))}</p>
 </section>"""
@@ -286,14 +306,14 @@ def render(cfg, posts, photo_sizes):
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body{' class="arrived"' if cfg.get('arrived') else ''}>
 <div class="lang" role="group" aria-label="Language">
   <button type="button" data-lang="en">EN</button><button type="button" data-lang="pt">PT</button>
 </div>
 <header class="site">
   {LEAVES}
-  <p class="pre">Cometh the hour…</p>
-  <h1>Cometh The Caleb</h1>
+  <p class="pre">{t("Cometh the hour…", "Chegou a hora…")}</p>
+  <h1>{t("Cometh the Caleb!", "vai chegar o Caleb!")}</h1>
 </header>
 <main>
 {hero}
@@ -315,6 +335,20 @@ def render(cfg, posts, photo_sizes):
     <div id="wish-list"></div>
     <div id="wish-more" class="hint"></div>
   </div>
+</section>
+<section id="guesses" class="guesses" hidden>
+  <h2 class="section-title">{t("Guess His Birth Time", "Adivinhe a Hora do Nascimento")}</h2>
+  <p class="hint">{t("Just for bragging rights", "Só pelo direito de se gabar")}</p>
+  <p class="hint small">{t("One guess per person · Arkansas time", "Um palpite por pessoa · horário do Arkansas")}</p>
+  <form id="guess-form" autocomplete="on">
+    <label>{t("Your name", "Seu nome")}<input name="name" maxlength="60" required
+      data-ph-en="Grandma Sue" data-ph-pt="Vovó Maria" placeholder="Grandma Sue"></label>
+    <label>{t("Date &amp; time he'll be born", "Data e hora em que ele vai nascer")}<input name="guess" type="datetime-local" required></label>
+    <label class="hp" aria-hidden="true">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>
+    <button type="submit">{t("Lock in my guess", "Registrar meu palpite")}</button>
+    <p id="guess-status" role="status"></p>
+  </form>
+  <ol id="guess-list" class="guess-list"></ol>
 </section>
 </main>
 <script>window.SITE = {json.dumps(public_cfg)};</script>

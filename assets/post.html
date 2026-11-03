@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Baby Post">
-<meta name="theme-color" content="#f4c2c2">
+<meta name="theme-color" content="#4f8a5b">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="../style.css">
@@ -23,7 +23,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key</p></header>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · v3</p></header>
 <main>
   <form id="setup" hidden>
     <label>GitHub key (fine-grained token, this repo only, Contents: read &amp; write)
@@ -33,7 +33,7 @@
   </form>
 
   <form id="post" hidden>
-    <label>Title<input name="title" required maxlength="120" placeholder="She's here!"></label>
+    <label>Title<input name="title" required maxlength="120" placeholder="He's here!"></label>
     <div class="row">
       <label>Date<input name="date" type="date" required></label>
       <label>Time (optional)<input name="time" type="time"></label>
@@ -57,7 +57,7 @@
   <form id="arrive" hidden>
     <h2>Baby has arrived</h2>
     <p class="small">Switches the countdown to the arrival banner.</p>
-    <label><input type="checkbox" name="arrived" style="width:auto"> She's here</label>
+    <label><input type="checkbox" name="arrived" style="width:auto"> He's here</label>
     <div class="row">
       <label>Date<input name="adate" type="date"></label>
       <label>Time<input name="atime" placeholder="4:12 am"></label>
@@ -66,7 +66,7 @@
       <label>Weight<input name="weight" placeholder="7 lb 4 oz"></label>
       <label>Length<input name="length" placeholder="20 in"></label>
     </div>
-    <label>Banner message<input name="message" maxlength="200" placeholder="She's here!"></label>
+    <label>Banner message<input name="message" maxlength="200" placeholder="He's here!"></label>
     <button type="submit" id="ago">Save arrival details</button>
     <p id="alog" class="small" role="status"></p>
   </form>
@@ -158,7 +158,7 @@
       var c = await getCfg();
       c.arrived = arrive.arrived.checked;
       c.arrival = { date: arrive.adate.value, time: arrive.atime.value.trim(), weight: arrive.weight.value.trim(),
-                    length: arrive.length.value.trim(), message: arrive.message.value.trim() || "She's here!" };
+                    length: arrive.length.value.trim(), message: arrive.message.value.trim() || "He's here!" };
       await gh("/contents/config.json", { method: "PUT", body: { message: c.arrived ? "Baby arrived" : "Update arrival details",
         content: b64utf8(JSON.stringify(c, null, 2) + "\n"), sha: cfgSha, branch: branch } });
       alog.textContent = "Saved! ✅ The site updates in 1–2 minutes.";
@@ -197,7 +197,12 @@
     } catch (err) { mlog.textContent = "Couldn't load updates: " + err.message; }
   }
   async function del(r, b) {
-    if (!confirm('Delete "' + (r.meta.title || r.path) + '"' + (r.meta.photos.length ? " and its photos" : "") + "?")) return;
+    if (!b.dataset.armed) {
+      b.dataset.armed = "1"; b.textContent = "Tap again to delete";
+      setTimeout(function () { if (b.dataset.armed) { delete b.dataset.armed; b.textContent = "Delete"; } }, 4000);
+      return;
+    }
+    delete b.dataset.armed; b.textContent = "Deleting…";
     b.disabled = true; mlog.textContent = "Deleting…";
     try {
       var paths = [r.path].concat(r.meta.photos.map(function (n) { return "photos/" + n; }));
@@ -211,7 +216,7 @@
       mlog.textContent = "Deleted ✅ The site updates in 1–2 minutes.";
       loadUpdates();
     } catch (err) {
-      mlog.textContent = "Not deleted: " + err.message; alert("Not deleted: " + err.message); b.disabled = false;
+      mlog.textContent = "Not deleted: " + err.message; b.textContent = "Delete"; b.disabled = false;
     }
   }
 

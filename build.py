@@ -172,7 +172,7 @@ def render(cfg, posts, photo_sizes):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
 <title>{e(cfg.get('site_title'))}</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍼</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f8a5b'/><rect x='16' y='28' width='42' height='36' rx='5' fill='white'/><rect x='56' y='40' width='28' height='24' rx='6' fill='white'/><rect x='61' y='45' width='15' height='10' rx='2' fill='%234f8a5b'/><circle cx='33' cy='68' r='10' fill='white' stroke='%234f8a5b' stroke-width='3'/><circle cx='69' cy='68' r='10' fill='white' stroke='%234f8a5b' stroke-width='3'/></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -209,14 +209,19 @@ def render(cfg, posts, photo_sizes):
 
 
 def make_icons(dest: Path):
-    """Home-screen icon for the Post page: pink square with a white heart."""
+    """Home-screen icon for the Post page: little white truck on green."""
     from PIL import ImageDraw
-    s = 512
-    im = Image.new("RGB", (s, s), (244, 194, 194))
+    s, g = 512, (79, 138, 91)
+    im = Image.new("RGB", (s, s), g)
     d = ImageDraw.Draw(im)
-    d.ellipse((126, 150, 266, 290), fill="white")
-    d.ellipse((246, 150, 386, 290), fill="white")
-    d.polygon([(136, 250), (376, 250), (256, 400)], fill="white")
+    d.rounded_rectangle((92, 150, 300, 330), 22, fill="white")          # cargo box
+    d.rounded_rectangle((292, 210, 420, 330), 26, fill="white")         # cab
+    d.rounded_rectangle((318, 232, 392, 282), 10, fill=g)               # window
+    d.rectangle((280, 230, 320, 330), fill="white")
+    for cx in (170, 350):                                               # wheels
+        d.ellipse((cx - 50, 296, cx + 50, 396), fill=g)
+        d.ellipse((cx - 40, 306, cx + 40, 386), fill="white")
+        d.ellipse((cx - 15, 331, cx + 15, 361), fill=g)
     im.save(dest / "icon-512.png")
     im.resize((180, 180), Image.LANCZOS).save(dest / "icon-180.png")
 

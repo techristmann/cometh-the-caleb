@@ -8,11 +8,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Baby Post">
-<meta name="theme-color" content="#4f8a5b">
+<meta name="theme-color" content="#2f5233">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="../style.css">
 <style>
+  h1 { font-size: clamp(32px, 9vw, 44px); }
+  main > section, main > form { margin-bottom: 28px; }
+  main h2 { font: 600 24px/1.2 var(--serif); color: var(--forest); margin: 0 0 6px; }
   .row { display: flex; gap: 8px; }
   .row > * { flex: 1; }
   .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 12px; }
@@ -20,10 +23,15 @@
   .small { font-size: 14px; color: var(--muted); }
   .linkbtn { background: none; color: var(--muted); width: auto; padding: 4px; font-weight: 400; text-decoration: underline; }
   #log { white-space: pre-wrap; font-size: 14px; color: var(--muted); }
+  .item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .item span { flex: 1; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .item b { display: block; font-weight: 600; }
+  .item button { width: auto; padding: 6px 12px; font-size: 15px; background: var(--rust); flex: none; }
+  #wpass { margin: 8px 0 12px; }
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="6">v6</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="7">v7</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -45,27 +53,28 @@
     <div class="thumbs" id="thumbs"></div>
     <button type="submit" id="go">Publish update</button>
     <p id="log" role="status"></p>
-    <p class="small">The live site refreshes about 1–2 minutes after publishing.
+    <p class="small">The live site refreshes about 1–2 minutes after publishing. Portuguese is translated automatically.
       <button type="button" class="linkbtn" id="forget">Forget key on this phone</button></p>
   </form>
+
+  <section id="wmanage">
+    <h2>Say Hello comments</h2>
+    <p class="small">Tap Delete to remove a comment from the site.</p>
+    <form id="wpass" hidden>
+      <label>Wish passphrase (the one you set in Supabase). You only enter it once on this phone.
+        <input id="wpassin" type="password" autocomplete="off"></label>
+      <button type="submit">Save passphrase</button>
+    </form>
+    <ul id="wlist" style="list-style:none;padding:0;margin:0"></ul>
+    <p id="wlog" class="small" role="status"></p>
+    <p class="small"><button type="button" class="linkbtn" id="wforget" hidden>Forget wish passphrase on this phone</button></p>
+  </section>
 
   <section id="manage" hidden>
     <h2>Your updates</h2>
     <p class="small">Delete removes the update and its photos from the site.</p>
     <ul id="ulist" style="list-style:none;padding:0;margin:0"></ul>
     <p id="mlog" class="small" role="status"></p>
-  </section>
-
-  <section id="wmanage" hidden>
-    <h2>Wishes</h2>
-    <form id="wpass" hidden>
-      <label>Wish passphrase (the one you set in Supabase)
-        <input id="wpassin" type="password" autocomplete="off"></label>
-      <button type="submit">Save passphrase on this phone</button>
-    </form>
-    <ul id="wlist" style="list-style:none;padding:0;margin:0"></ul>
-    <p id="wlog" class="small" role="status"></p>
-    <p class="small"><button type="button" class="linkbtn" id="wforget" hidden>Forget wish passphrase on this phone</button></p>
   </section>
 
   <form id="arrive" hidden>
@@ -110,10 +119,10 @@
   var log = document.getElementById("log");
   var files = [];
 
-  var wmanage = document.getElementById("wmanage"), wlist = document.getElementById("wlist"), wlog = document.getElementById("wlog"), wpass = document.getElementById("wpass");
+  var wlist = document.getElementById("wlist"), wlog = document.getElementById("wlog"), wpass = document.getElementById("wpass");
   var manage = document.getElementById("manage"), ulist = document.getElementById("ulist"), mlog = document.getElementById("mlog");
   var arrive = document.getElementById("arrive"), alog = document.getElementById("alog"), cfgSha = null;
-  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; wmanage.hidden = !t; if (t) { loadArrival(); loadUpdates(); loadWishes(); } }
+  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; if (t) { loadArrival(); loadUpdates(); } }
   var today = new Date();
   post.date.value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   show();
@@ -216,25 +225,25 @@
       }));
       rows.sort(function (a, b) { return (b.meta.date + (b.meta.time || "")).localeCompare(a.meta.date + (a.meta.time || "")); });
       rows.forEach(function (r) {
-        var li = document.createElement("li");
-        li.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(127,127,127,.25)";
-        var t = document.createElement("span"); t.style.flex = "1";
+        var li = document.createElement("li"); li.className = "item";
+        var t = document.createElement("span");
         t.textContent = (r.meta.title || r.path) + " · " + (r.meta.date || "") + (r.meta.photos.length ? " · " + r.meta.photos.length + " photo(s)" : "");
-        var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete"; b.style.cssText = "width:auto;padding:6px 12px";
+        var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete";
         b.onclick = function () { del(r, b); };
         li.appendChild(t); li.appendChild(b); ulist.appendChild(li);
       });
       mlog.textContent = rows.length ? "" : "No updates yet.";
     } catch (err) { mlog.textContent = "Couldn't load updates: " + err.message; }
   }
+  function arm(b) {
+    if (b.dataset.armed) { delete b.dataset.armed; return true; }
+    b.dataset.armed = "1"; b.textContent = "Tap again";
+    setTimeout(function () { if (b.dataset.armed) { delete b.dataset.armed; b.textContent = "Delete"; } }, 4000);
+    return false;
+  }
   async function del(r, b) {
-    if (!b.dataset.armed) {
-      b.dataset.armed = "1"; b.textContent = "Tap again to delete";
-      setTimeout(function () { if (b.dataset.armed) { delete b.dataset.armed; b.textContent = "Delete"; } }, 4000);
-      return;
-    }
-    delete b.dataset.armed; b.textContent = "Deleting…";
-    b.disabled = true; mlog.textContent = "Deleting…";
+    if (!arm(b)) return;
+    b.textContent = "Deleting…"; b.disabled = true; mlog.textContent = "Deleting…";
     try {
       var paths = [r.path].concat(r.meta.photos.map(function (n) { return "photos/" + n; }));
       for (var i = 0; i < paths.length; i++) {
@@ -251,12 +260,13 @@
     }
   }
 
-  // ---- wishes: list + delete via Supabase function protected by a passphrase ----
+  // ---- Say Hello comments: list + delete via Supabase function protected by a passphrase ----
   var WKEY = "babysite_wish_pass";
   var wstore = { get: function () { try { return localStorage.getItem(WKEY); } catch (e) { return null; } },
                  set: function (v) { try { localStorage.setItem(WKEY, v); } catch (e) {} },
                  del: function () { try { localStorage.removeItem(WKEY); } catch (e) {} } };
   var sbUrl = (cfg.supabase_url || "").replace(/\/$/, ""), sbKey = cfg.supabase_anon_key || "";
+  var pending = null;   // comment the user tapped Delete on before saving the passphrase
   function sbHeaders() {
     var h = { apikey: sbKey, "Content-Type": "application/json" };
     if (/^eyJ/.test(sbKey)) h.Authorization = "Bearer " + sbKey;
@@ -265,49 +275,51 @@
   async function rpc(fn, args) {
     var r = await fetch(sbUrl + "/rest/v1/rpc/" + fn, { method: "POST", cache: "no-store", headers: sbHeaders(), body: JSON.stringify(args) });
     var txt = await r.text(), data = null; try { data = JSON.parse(txt); } catch (e) {}
-    if (r.status === 404) throw new Error("Wish deleting isn't set up in Supabase yet (run supabase/admin.sql).");
+    if (r.status === 404) throw new Error("Comment deleting isn't set up in Supabase yet (run supabase/admin.sql).");
     if (!r.ok) throw new Error((data && data.message) || ("Supabase error " + r.status));
     return data;
   }
   async function loadWishes() {
     var has = !!wstore.get();
-    wpass.hidden = has; document.getElementById("wforget").hidden = !has;
+    document.getElementById("wforget").hidden = !has;
+    if (has) wpass.hidden = true;
     wlist.textContent = "";
     if (!sbUrl || !sbKey) { wlog.textContent = "Supabase isn't configured."; return; }
     wlog.textContent = "Loading…";
     try {
-      var r = await fetch(sbUrl + "/rest/v1/wishes?select=id,name,message,created_at&order=created_at.desc&limit=500", { cache: "no-store", headers: sbHeaders() });
+      var r = await fetch(sbUrl + "/rest/v1/wishes?select=id,name,message,created_at&order=created_at.desc&limit=1000", { cache: "no-store", headers: sbHeaders() });
       if (!r.ok) throw new Error("Supabase error " + r.status);
       var rows = await r.json();
       rows.forEach(function (w) {
-        var li = document.createElement("li");
-        li.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(127,127,127,.25)";
-        var t = document.createElement("span"); t.style.flex = "1";
-        var msg = w.message.length > 80 ? w.message.slice(0, 80) + "…" : w.message;
-        t.textContent = w.name + ": " + msg;
-        li.appendChild(t);
-        if (has) {
-          var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete"; b.style.cssText = "width:auto;padding:6px 12px";
-          b.onclick = function () { delWish(w, b); };
-          li.appendChild(b);
-        }
-        wlist.appendChild(li);
+        var li = document.createElement("li"); li.className = "item";
+        var t = document.createElement("span");
+        var n = document.createElement("b");
+        n.textContent = w.name + " · " + new Date(w.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        t.appendChild(n); t.appendChild(document.createTextNode(w.message));
+        var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete";
+        b.onclick = function () { delWish(w, b); };
+        li.appendChild(t); li.appendChild(b); wlist.appendChild(li);
       });
-      wlog.textContent = rows.length ? (has ? "" : "Save your wish passphrase above to delete wishes.") : "No wishes yet.";
-    } catch (err) { wlog.textContent = "Couldn't load wishes: " + err.message; }
+      wlog.textContent = rows.length ? "" : "No comments yet.";
+    } catch (err) { wlog.textContent = "Couldn't load comments: " + err.message; }
   }
   async function delWish(w, b) {
-    if (!b.dataset.armed) {
-      b.dataset.armed = "1"; b.textContent = "Tap again to delete";
-      setTimeout(function () { if (b.dataset.armed) { delete b.dataset.armed; b.textContent = "Delete"; } }, 4000);
+    if (!wstore.get()) {           // first delete on this phone: ask for the passphrase once
+      pending = w; wpass.hidden = false;
+      wlog.textContent = "Enter your wish passphrase once, then the delete goes through.";
+      document.getElementById("wpassin").focus();
       return;
     }
-    delete b.dataset.armed; b.textContent = "Deleting…"; b.disabled = true;
+    if (!arm(b)) return;
+    b.textContent = "Deleting…"; b.disabled = true;
     try {
       await rpc("delete_wish", { p_id: w.id, p_pass: wstore.get() });
-      wlog.textContent = "Wish deleted ✅";
+      wlog.textContent = "Comment deleted ✅";
       loadWishes();
-    } catch (err) { wlog.textContent = "Not deleted: " + err.message; b.textContent = "Delete"; b.disabled = false; }
+    } catch (err) {
+      if (/passphrase/i.test(err.message)) { wstore.del(); wpass.hidden = false; }
+      wlog.textContent = "Not deleted: " + err.message; b.textContent = "Delete"; b.disabled = false;
+    }
   }
   wpass.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -316,11 +328,19 @@
     wlog.textContent = "Checking…";
     try {
       var ok = await rpc("check_wish_admin", { p_pass: v });
-      if (!ok) { wlog.textContent = "That passphrase doesn't match the one in Supabase."; return; }
-      wstore.set(v); document.getElementById("wpassin").value = ""; loadWishes();
+      if (!ok) { wlog.textContent = "That passphrase doesn't match. If you never set one, run the last line of supabase/admin.sql in Supabase with your own passphrase."; return; }
+      wstore.set(v); document.getElementById("wpassin").value = ""; wpass.hidden = true;
+      if (pending) {
+        var w = pending; pending = null;
+        wlog.textContent = "Deleting…";
+        await rpc("delete_wish", { p_id: w.id, p_pass: v });
+        wlog.textContent = "Comment deleted ✅";
+      } else { wlog.textContent = "Passphrase saved."; }
+      loadWishes();
     } catch (err) { wlog.textContent = err.message; }
   });
   document.getElementById("wforget").onclick = function () { wstore.del(); loadWishes(); };
+  loadWishes();
 
   post.addEventListener("submit", async function (e) {
     e.preventDefault();

@@ -3,5 +3,3 @@ _site/
 __pycache__/
 .env
 *.local.json
-
-.cache/

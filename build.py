@@ -254,7 +254,9 @@ def main():
     make_icons(OUT / "post")
     shutil.copy(ROOT / "assets" / "post-manifest.json", OUT / "post" / "manifest.json")
     (OUT / "config.json").write_text(json.dumps({"github_repo": cfg.get("github_repo"),
-                                                 "github_branch": cfg.get("github_branch", "main")}))
+                                                 "github_branch": cfg.get("github_branch", "main"),
+                                                 "supabase_url": cfg.get("supabase_url", ""),
+                                                 "supabase_anon_key": cfg.get("supabase_anon_key", "")}))
     (OUT / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
     (OUT / ".nojekyll").write_text("")
     print(f"Built {len(posts)} update(s), {len(sizes)} photo(s) -> {OUT}")

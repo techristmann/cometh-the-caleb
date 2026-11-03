@@ -47,6 +47,13 @@
       <button type="button" class="linkbtn" id="forget">Forget key on this phone</button></p>
   </form>
 
+  <section id="manage" hidden>
+    <h2>Your updates</h2>
+    <p class="small">Delete removes the update and its photos from the site.</p>
+    <ul id="ulist" style="list-style:none;padding:0;margin:0"></ul>
+    <p id="mlog" class="small" role="status"></p>
+  </section>
+
   <form id="arrive" hidden>
     <h2>Baby has arrived</h2>
     <p class="small">Switches the countdown to the arrival banner.</p>
@@ -76,8 +83,9 @@
   var log = document.getElementById("log");
   var files = [];
 
+  var manage = document.getElementById("manage"), ulist = document.getElementById("ulist"), mlog = document.getElementById("mlog");
   var arrive = document.getElementById("arrive"), alog = document.getElementById("alog"), cfgSha = null;
-  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; if (t) loadArrival(); }
+  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; if (t) { loadArrival(); loadUpdates(); } }
   var today = new Date();
   post.date.value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   show();
@@ -158,6 +166,55 @@
     btn.disabled = false;
   });
 
+  function fm(md) {
+    var m = /^---\n([\s\S]*?)\n---/.exec(md) || ["", ""], o = { photos: [] }, inPhotos = false;
+    m[1].split("\n").forEach(function (l) {
+      var kv = /^(\w+):\s*(.*)$/.exec(l);
+      if (kv) { inPhotos = kv[1] === "photos"; if (!inPhotos) o[kv[1]] = kv[2].replace(/^"|"$/g, ""); }
+      else if (inPhotos) { var it = /^\s*-\s*(.+)$/.exec(l); if (it) o.photos.push(it[1].trim()); }
+    });
+    return o;
+  }
+  async function loadUpdates() {
+    ulist.textContent = ""; mlog.textContent = "Loading…";
+    try {
+      var items = (await gh("/contents/updates?ref=" + branch)).filter(function (f) { return /\.md$/.test(f.name); });
+      var rows = await Promise.all(items.map(async function (f) {
+        var d = await gh("/contents/" + f.path + "?ref=" + branch);
+        return { path: f.path, meta: fm(utf8b64dec(d.content)) };
+      }));
+      rows.sort(function (a, b) { return (b.meta.date + (b.meta.time || "")).localeCompare(a.meta.date + (a.meta.time || "")); });
+      rows.forEach(function (r) {
+        var li = document.createElement("li");
+        li.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(127,127,127,.25)";
+        var t = document.createElement("span"); t.style.flex = "1";
+        t.textContent = (r.meta.title || r.path) + " · " + (r.meta.date || "") + (r.meta.photos.length ? " · " + r.meta.photos.length + " photo(s)" : "");
+        var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete"; b.style.cssText = "width:auto;padding:6px 12px";
+        b.onclick = function () { del(r, b); };
+        li.appendChild(t); li.appendChild(b); ulist.appendChild(li);
+      });
+      mlog.textContent = rows.length ? "" : "No updates yet.";
+    } catch (err) { mlog.textContent = "Couldn't load updates: " + err.message; }
+  }
+  async function del(r, b) {
+    if (!confirm('Delete "' + (r.meta.title || r.path) + '"' + (r.meta.photos.length ? " and its photos" : "") + "?")) return;
+    b.disabled = true; mlog.textContent = "Deleting…";
+    try {
+      var tree = [{ path: r.path, mode: "100644", type: "blob", sha: null }];
+      r.meta.photos.forEach(function (n) { tree.push({ path: "photos/" + n, mode: "100644", type: "blob", sha: null }); });
+      var ref = await gh("/git/ref/heads/" + branch);
+      var head = await gh("/git/commits/" + ref.object.sha);
+      var base = await gh("/git/trees/" + head.tree.sha + "?recursive=1");
+      var have = {}; base.tree.forEach(function (x) { have[x.path] = 1; });
+      tree = tree.filter(function (x) { return have[x.path]; });
+      var nt = await gh("/git/trees", { method: "POST", body: { base_tree: head.tree.sha, tree: tree } });
+      var c = await gh("/git/commits", { method: "POST", body: { message: "Delete: " + (r.meta.title || r.path), tree: nt.sha, parents: [ref.object.sha] } });
+      await gh("/git/refs/heads/" + branch, { method: "PATCH", body: { sha: c.sha } });
+      mlog.textContent = "Deleted ✅ The site updates in 1–2 minutes.";
+      loadUpdates();
+    } catch (err) { mlog.textContent = "Not deleted: " + err.message; b.disabled = false; }
+  }
+
   post.addEventListener("submit", async function (e) {
     e.preventDefault();
     var btn = document.getElementById("go"); btn.disabled = true;
@@ -191,6 +248,7 @@
       log.textContent = "Published! ✅ It will appear on the site in 1–2 minutes.";
       post.reset(); files = []; document.getElementById("thumbs").textContent = "";
       post.date.value = date;
+      loadUpdates();
     } catch (err) {
       log.textContent = "Not published: " + err.message;
     }

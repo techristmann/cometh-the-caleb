@@ -23,7 +23,9 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · v4</p></header>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="5">v5</span></p>
+  <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
+  <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
   <form id="setup" hidden>
     <label>GitHub key (fine-grained token, this repo only, Contents: read &amp; write)
@@ -85,11 +87,24 @@
 </main>
 <script>
 (async function () {
+  // Home-screen apps can't be reloaded by hand: check for a newer copy and offer a fresh load.
+  function freshLoad() { location.replace(location.pathname + "?v=" + Date.now()); }
+  document.getElementById("reload").onclick = freshLoad;
+  document.getElementById("updbtn").onclick = freshLoad;
+  (function checkVersion() {
+    var mine = document.getElementById("ver").dataset.version;
+    fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var m = /data-version="(\d+)"/.exec(t);
+        if (m && Number(m[1]) > Number(mine)) document.getElementById("upd").hidden = false;
+      }).catch(function () {});
+  })();
   var KEY = "babysite_github_token";
   var store = { get: function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } },
                 set: function (v) { try { localStorage.setItem(KEY, v); } catch (e) {} },
                 del: function () { try { localStorage.removeItem(KEY); } catch (e) {} } };
-  var cfg = await fetch("../config.json").then(function (r) { return r.json(); });
+  var cfg = await fetch("../config.json?v=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); });
   var repo = cfg.github_repo, branch = cfg.github_branch || "main";
   var setup = document.getElementById("setup"), post = document.getElementById("post");
   var log = document.getElementById("log");

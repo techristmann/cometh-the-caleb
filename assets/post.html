@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="7">v7</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="8">v8</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -70,6 +70,13 @@
     <p class="small"><button type="button" class="linkbtn" id="wforget" hidden>Forget wish passphrase on this phone</button></p>
   </section>
 
+  <section id="gmanage" hidden>
+    <h2>Birth time guesses</h2>
+    <p class="small">One per person. Delete one if someone needs to change theirs, then they can guess again.</p>
+    <ul id="glist" style="list-style:none;padding:0;margin:0"></ul>
+    <p id="glog" class="small" role="status"></p>
+  </section>
+
   <section id="manage" hidden>
     <h2>Your updates</h2>
     <p class="small">Delete removes the update and its photos from the site.</p>
@@ -79,11 +86,11 @@
 
   <form id="arrive" hidden>
     <h2>Baby has arrived</h2>
-    <p class="small">Switches the countdown to the arrival banner.</p>
+    <p class="small">Switches the countdown to the arrival banner, sets off the balloons and bottles, closes guessing, and announces whoever guessed closest to the date and time below.</p>
     <label><input type="checkbox" name="arrived" style="width:auto"> He's here</label>
     <div class="row">
       <label>Date<input name="adate" type="date"></label>
-      <label>Time<input name="atime" placeholder="4:12 am"></label>
+      <label>Time (Arkansas)<input name="atime" type="time"></label>
     </div>
     <div class="row">
       <label>Weight<input name="weight" placeholder="7 lb 4 oz"></label>
@@ -180,11 +187,16 @@
     var f = await gh("/contents/config.json?ref=" + branch);
     cfgSha = f.sha; return JSON.parse(utf8b64dec(f.content));
   }
+  function to24(s) {   // "4:12 am" or "04:12" -> "04:12" for the time picker
+    var m = /^\s*(\d{1,2})[:h.](\d{2})\s*([ap])?/i.exec(s || ""); if (!m) return "";
+    var h = +m[1]; if (m[3]) h = h % 12 + (/p/i.test(m[3]) ? 12 : 0);
+    return (h < 10 ? "0" : "") + h + ":" + m[2];
+  }
   async function loadArrival() {
     try {
       var c = await getCfg(), a = c.arrival || {};
       arrive.arrived.checked = !!c.arrived; arrive.adate.value = a.date || "";
-      arrive.atime.value = a.time || ""; arrive.weight.value = a.weight || "";
+      arrive.atime.value = to24(a.time); arrive.weight.value = a.weight || "";
       arrive.length.value = a.length || ""; arrive.message.value = a.message || "";
     } catch (err) { alog.textContent = "Couldn't load current details: " + err.message; }
   }
@@ -287,7 +299,7 @@
     if (!sbUrl || !sbKey) { wlog.textContent = "Supabase isn't configured."; return; }
     wlog.textContent = "Loading…";
     try {
-      var r = await fetch(sbUrl + "/rest/v1/wishes?select=id,name,message,created_at&order=created_at.desc&limit=1000", { cache: "no-store", headers: sbHeaders() });
+      var r = await fetch(sbUrl + "/rest/v1/wishes?order=created_at.desc&limit=1000&select=id,name,message,created_at", { cache: "no-store", headers: sbHeaders() });
       if (!r.ok) throw new Error("Supabase error " + r.status);
       var rows = await r.json();
       rows.forEach(function (w) {
@@ -303,9 +315,33 @@
       wlog.textContent = rows.length ? "" : "No comments yet.";
     } catch (err) { wlog.textContent = "Couldn't load comments: " + err.message; }
   }
-  async function delWish(w, b) {
+  // ---- birth-time guesses (supabase/guesses.sql); section stays hidden until that's run ----
+  var gmanage = document.getElementById("gmanage"), glist = document.getElementById("glist"), glog = document.getElementById("glog");
+  async function loadGuesses() {
+    if (!sbUrl || !sbKey) return;
+    try {
+      var r = await fetch(sbUrl + "/rest/v1/guesses?order=guess.asc&limit=2000&select=id,name,guess,created_at", { cache: "no-store", headers: sbHeaders() });
+      if (!r.ok) return;
+      var rows = await r.json();
+      gmanage.hidden = false; glist.textContent = "";
+      rows.forEach(function (g) {
+        var li = document.createElement("li"); li.className = "item";
+        var t = document.createElement("span");
+        var n = document.createElement("b"); n.textContent = g.name;
+        t.appendChild(n); t.appendChild(document.createTextNode(g.guess.replace("T", " at ")));
+        var b = document.createElement("button"); b.type = "button"; b.textContent = "Delete";
+        b.onclick = function () { delWish(g, b, true); };
+        li.appendChild(t); li.appendChild(b); glist.appendChild(li);
+      });
+      glog.textContent = rows.length ? "" : "No guesses yet.";
+    } catch (e) {}
+  }
+  loadGuesses();
+
+  async function delWish(w, b, isGuess) {
+    var log = isGuess ? glog : wlog;
     if (!wstore.get()) {           // first delete on this phone: ask for the passphrase once
-      pending = w; wpass.hidden = false;
+      pending = { w: w, guess: !!isGuess }; wpass.hidden = false;
       wlog.textContent = "Enter your wish passphrase once, then the delete goes through.";
       document.getElementById("wpassin").focus();
       return;
@@ -313,13 +349,16 @@
     if (!arm(b)) return;
     b.textContent = "Deleting…"; b.disabled = true;
     try {
-      await rpc("delete_wish", { p_id: w.id, p_pass: wstore.get() });
-      wlog.textContent = "Comment deleted ✅";
-      loadWishes();
+      await doDelete(w, isGuess, wstore.get());
     } catch (err) {
       if (/passphrase/i.test(err.message)) { wstore.del(); wpass.hidden = false; }
-      wlog.textContent = "Not deleted: " + err.message; b.textContent = "Delete"; b.disabled = false;
+      log.textContent = "Not deleted: " + err.message; b.textContent = "Delete"; b.disabled = false;
     }
+  }
+  async function doDelete(w, isGuess, pass) {
+    await rpc(isGuess ? "delete_guess" : "delete_wish", { p_id: w.id, p_pass: pass });
+    if (isGuess) { glog.textContent = "Guess deleted ✅"; loadGuesses(); }
+    else { wlog.textContent = "Comment deleted ✅"; loadWishes(); }
   }
   wpass.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -330,12 +369,8 @@
       var ok = await rpc("check_wish_admin", { p_pass: v });
       if (!ok) { wlog.textContent = "That passphrase doesn't match. If you never set one, run the last line of supabase/admin.sql in Supabase with your own passphrase."; return; }
       wstore.set(v); document.getElementById("wpassin").value = ""; wpass.hidden = true;
-      if (pending) {
-        var w = pending; pending = null;
-        wlog.textContent = "Deleting…";
-        await rpc("delete_wish", { p_id: w.id, p_pass: v });
-        wlog.textContent = "Comment deleted ✅";
-      } else { wlog.textContent = "Passphrase saved."; }
+      wlog.textContent = "Passphrase saved.";
+      if (pending) { var p = pending; pending = null; await doDelete(p.w, p.guess, v); }
       loadWishes();
     } catch (err) { wlog.textContent = err.message; }
   });

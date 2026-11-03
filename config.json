@@ -1,0 +1,19 @@
+{
+  "site_title": "Baby Christmann",
+  "baby_name": "Baby",
+  "family_name": "The Christmann Family",
+  "tagline": "Updates, photos and wishes for our little one",
+  "due_date": "2026-12-15",
+  "arrived": false,
+  "arrival": {
+    "date": "",
+    "time": "",
+    "weight": "",
+    "length": "",
+    "message": "She's here!"
+  },
+  "supabase_url": "https://yyehhptiwdmiqabpjhij.supabase.co",
+  "supabase_anon_key": "sb_publishable_xIIWCNaP0jxRFbTCHJp7Kw_P3FogW9q",
+  "github_repo": "techristmann/baby-site",
+  "github_branch": "main"
+}

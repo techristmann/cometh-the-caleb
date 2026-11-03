@@ -1,0 +1,92 @@
+:root {
+  --bg: #fbf6f0;
+  --card: #ffffff;
+  --ink: #3d3530;
+  --muted: #8a7d74;
+  --accent: #d98b7a;
+  --accent-soft: #f6e1da;
+  --sage: #a9bfa8;
+  --line: #eee3d9;
+  --radius: 18px;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1b19; --card: #2a2421; --ink: #f1e8e1; --muted: #b3a59b;
+    --accent: #e7a291; --accent-soft: #3d2c27; --sage: #7f9a7e; --line: #3a312c;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.6 var(--sans); -webkit-text-size-adjust: 100%;
+}
+header { text-align: center; padding: 40px 16px 8px; }
+.family { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+h1 { font: 600 clamp(32px, 9vw, 52px)/1.1 var(--serif); margin: 6px 0; }
+.tagline { margin: 0 0 16px; color: var(--muted); }
+nav { display: flex; gap: 8px; justify-content: center; }
+nav a {
+  color: var(--ink); text-decoration: none; font-size: 15px;
+  padding: 8px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+}
+main { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+.banner {
+  text-align: center; border-radius: var(--radius); padding: 28px 16px; margin: 8px 0 28px;
+  background: linear-gradient(160deg, var(--accent-soft), var(--card));
+  border: 1px solid var(--line);
+}
+.banner .eyebrow { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.banner .count { font: 600 64px/1 var(--serif); color: var(--accent); margin: 8px 0 4px; }
+.banner .count small { display: block; font: 15px var(--sans); color: var(--muted); margin-top: 6px; }
+.banner.arrived h2 { font: 600 clamp(28px, 8vw, 40px)/1.15 var(--serif); margin: 4px 0; color: var(--accent); }
+.banner .name { font: italic 24px var(--serif); margin: 0 0 12px; }
+.banner .confetti { color: var(--sage); letter-spacing: .5em; }
+.stats { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.stats li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; font-size: 15px; }
+
+.update {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 20px;
+}
+.update time { color: var(--muted); font-size: 14px; }
+.update h2 { font: 600 24px/1.25 var(--serif); margin: 2px 0 12px; }
+.update .body p { margin: 0 0 12px; }
+.update .body p:last-child { margin-bottom: 0; }
+.update .body a { color: var(--accent); }
+.gallery { display: grid; gap: 6px; margin: 0 -8px 14px; }
+.gallery.n2 { grid-template-columns: 1fr 1fr; }
+.gallery.n3 { grid-template-columns: 1fr 1fr; }
+.gallery.n3 a:first-child { grid-column: 1 / -1; }
+.gallery.n3 a:first-child img { aspect-ratio: 4 / 3; }
+.gallery.n1 img { max-height: 80vh; object-fit: contain; background: var(--accent-soft); }
+.gallery img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; }
+.gallery.n1 img { height: auto; }
+.gallery.n2 img, .gallery.n3 a:not(:first-child) img { aspect-ratio: 1; }
+.empty { text-align: center; color: var(--muted); }
+
+.wishes { margin-top: 36px; }
+.wishes h2 { font: 600 26px var(--serif); margin: 0; text-align: center; }
+.hint { text-align: center; color: var(--muted); margin: 4px 0 16px; }
+form { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 12px; }
+input, textarea {
+  display: block; width: 100%; margin-top: 4px; font: 17px var(--sans); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+}
+input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+button {
+  width: 100%; font: 600 17px var(--sans); padding: 14px; border: 0; border-radius: 12px;
+  background: var(--accent); color: #fff; cursor: pointer;
+}
+button:disabled { opacity: .6; }
+.hp { position: absolute; left: -9999px; }
+#wish-status { margin: 10px 0 0; text-align: center; min-height: 1em; }
+#wish-list { margin-top: 16px; }
+.wish { border-left: 3px solid var(--sage); padding: 4px 0 4px 14px; margin: 18px 0; }
+.wish p { margin: 0; white-space: pre-wrap; }
+.wish .who { color: var(--muted); font-size: 14px; margin-top: 4px; }
+footer { text-align: center; color: var(--muted); font-size: 13px; padding: 32px 16px 48px; }

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Post an update</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Baby Post">
+<meta name="theme-color" content="#f4c2c2">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="../style.css">
+<style>
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 12px; }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+  .small { font-size: 14px; color: var(--muted); }
+  .linkbtn { background: none; color: var(--muted); width: auto; padding: 4px; font-weight: 400; text-decoration: underline; }
+  #log { white-space: pre-wrap; font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key</p></header>
+<main>
+  <form id="setup" hidden>
+    <label>GitHub key (fine-grained token, this repo only, Contents: read &amp; write)
+      <input id="token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+    <button type="submit">Save key on this phone</button>
+    <p class="small">The key is saved only in this browser on this device. It is never put in the website or the repo.</p>
+  </form>
+
+  <form id="post" hidden>
+    <label>Title<input name="title" required maxlength="120" placeholder="She's here!"></label>
+    <div class="row">
+      <label>Date<input name="date" type="date" required></label>
+      <label>Time (optional)<input name="time" type="time"></label>
+    </div>
+    <label>Update<textarea name="body" rows="7" placeholder="7 lb 4 oz, 20 inches. Mom and baby are doing great…"></textarea></label>
+    <label>Photos<input id="photos" type="file" accept="image/*" multiple></label>
+    <div class="thumbs" id="thumbs"></div>
+    <button type="submit" id="go">Publish update</button>
+    <p id="log" role="status"></p>
+    <p class="small">The live site refreshes about 1–2 minutes after publishing.
+      <button type="button" class="linkbtn" id="forget">Forget key on this phone</button></p>
+  </form>
+
+  <form id="arrive" hidden>
+    <h2>Baby has arrived</h2>
+    <p class="small">Switches the countdown to the arrival banner.</p>
+    <label><input type="checkbox" name="arrived" style="width:auto"> She's here</label>
+    <div class="row">
+      <label>Date<input name="adate" type="date"></label>
+      <label>Time<input name="atime" placeholder="4:12 am"></label>
+    </div>
+    <div class="row">
+      <label>Weight<input name="weight" placeholder="7 lb 4 oz"></label>
+      <label>Length<input name="length" placeholder="20 in"></label>
+    </div>
+    <label>Banner message<input name="message" maxlength="200" placeholder="She's here!"></label>
+    <button type="submit" id="ago">Save arrival details</button>
+    <p id="alog" class="small" role="status"></p>
+  </form>
+</main>
+<script>
+(async function () {
+  var KEY = "babysite_github_token";
+  var store = { get: function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } },
+                set: function (v) { try { localStorage.setItem(KEY, v); } catch (e) {} },
+                del: function () { try { localStorage.removeItem(KEY); } catch (e) {} } };
+  var cfg = await fetch("../config.json").then(function (r) { return r.json(); });
+  var repo = cfg.github_repo, branch = cfg.github_branch || "main";
+  var setup = document.getElementById("setup"), post = document.getElementById("post");
+  var log = document.getElementById("log");
+  var files = [];
+
+  var arrive = document.getElementById("arrive"), alog = document.getElementById("alog"), cfgSha = null;
+  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; if (t) loadArrival(); }
+  var today = new Date();
+  post.date.value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  show();
+
+  setup.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var t = document.getElementById("token").value.trim();
+    if (t) { store.set(t); show(); }
+  });
+  document.getElementById("forget").onclick = function () { store.del(); show(); };
+
+  document.getElementById("photos").addEventListener("change", function (e) {
+    files = Array.from(e.target.files);
+    var box = document.getElementById("thumbs"); box.textContent = "";
+    files.forEach(function (f) { var i = new Image(); i.src = URL.createObjectURL(f); box.appendChild(i); });
+  });
+
+  // Resize + re-encode in the browser. Re-encoding drops EXIF/GPS.
+  function shrink(file) {
+    return new Promise(function (res, rej) {
+      var img = new Image();
+      img.onload = function () {
+        var max = 2000, s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) {
+          var r = new FileReader();
+          r.onload = function () { res(r.result.split(",")[1]); };
+          r.onerror = rej; r.readAsDataURL(b);
+        }, "image/jpeg", 0.88);
+      };
+      img.onerror = function () { rej(new Error("Couldn't read " + file.name)); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
+
+  async function gh(path, opts) {
+    opts = opts || {};
+    var r = await fetch("https://api.github.com/repos/" + repo + path, {
+      method: opts.method || "GET",
+      headers: { Authorization: "Bearer " + store.get(), Accept: "application/vnd.github+json",
+                 "Content-Type": "application/json" },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (r.status === 401 || r.status === 403) throw new Error("GitHub rejected the key (" + r.status + "). Check it has Contents: read & write on " + repo + ".");
+    if (!r.ok) throw new Error("GitHub error " + r.status + ": " + (await r.text()).slice(0, 200));
+    return r.json();
+  }
+
+  function utf8b64dec(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, "")))); }
+  async function getCfg() {
+    var f = await gh("/contents/config.json?ref=" + branch);
+    cfgSha = f.sha; return JSON.parse(utf8b64dec(f.content));
+  }
+  async function loadArrival() {
+    try {
+      var c = await getCfg(), a = c.arrival || {};
+      arrive.arrived.checked = !!c.arrived; arrive.adate.value = a.date || "";
+      arrive.atime.value = a.time || ""; arrive.weight.value = a.weight || "";
+      arrive.length.value = a.length || ""; arrive.message.value = a.message || "";
+    } catch (err) { alog.textContent = "Couldn't load current details: " + err.message; }
+  }
+  arrive.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var btn = document.getElementById("ago"); btn.disabled = true;
+    try {
+      var c = await getCfg();
+      c.arrived = arrive.arrived.checked;
+      c.arrival = { date: arrive.adate.value, time: arrive.atime.value.trim(), weight: arrive.weight.value.trim(),
+                    length: arrive.length.value.trim(), message: arrive.message.value.trim() || "She's here!" };
+      await gh("/contents/config.json", { method: "PUT", body: { message: c.arrived ? "Baby arrived" : "Update arrival details",
+        content: b64utf8(JSON.stringify(c, null, 2) + "\n"), sha: cfgSha, branch: branch } });
+      alog.textContent = "Saved! ✅ The site updates in 1–2 minutes.";
+    } catch (err) { alog.textContent = "Not saved: " + err.message; }
+    btn.disabled = false;
+  });
+
+  post.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var btn = document.getElementById("go"); btn.disabled = true;
+    try {
+      var f = new FormData(post);
+      var title = String(f.get("title")).trim(), date = f.get("date"), time = f.get("time") || "";
+      var slug = date + "-" + (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "update");
+      var stamp = Date.now().toString(36).slice(-4);
+      var tree = [], names = [];
+      for (var i = 0; i < files.length; i++) {
+        log.textContent = "Preparing photo " + (i + 1) + " of " + files.length + "…";
+        var data = await shrink(files[i]);
+        var blob = await gh("/git/blobs", { method: "POST", body: { content: data, encoding: "base64" } });
+        var name = slug + "-" + stamp + "-" + (i + 1) + ".jpg";
+        names.push(name);
+        tree.push({ path: "photos/" + name, mode: "100644", type: "blob", sha: blob.sha });
+      }
+      var md = "---\ntitle: " + JSON.stringify(title) + "\ndate: " + date + "\n" + (time ? "time: \"" + time + "\"\n" : "") +
+        (names.length ? "photos:\n" + names.map(function (n) { return "  - " + n + "\n"; }).join("") : "") +
+        "---\n\n" + String(f.get("body") || "").trim() + "\n";
+      var mdBlob = await gh("/git/blobs", { method: "POST", body: { content: b64utf8(md), encoding: "base64" } });
+      tree.push({ path: "updates/" + slug + "-" + stamp + ".md", mode: "100644", type: "blob", sha: mdBlob.sha });
+
+      log.textContent = "Publishing…";
+      var ref = await gh("/git/ref/heads/" + branch);
+      var head = await gh("/git/commits/" + ref.object.sha);
+      var newTree = await gh("/git/trees", { method: "POST", body: { base_tree: head.tree.sha, tree: tree } });
+      var commit = await gh("/git/commits", { method: "POST", body: { message: "Update: " + title, tree: newTree.sha, parents: [ref.object.sha] } });
+      await gh("/git/refs/heads/" + branch, { method: "PATCH", body: { sha: commit.sha } });
+
+      log.textContent = "Published! ✅ It will appear on the site in 1–2 minutes.";
+      post.reset(); files = []; document.getElementById("thumbs").textContent = "";
+      post.date.value = date;
+    } catch (err) {
+      log.textContent = "Not published: " + err.message;
+    }
+    btn.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>

@@ -23,7 +23,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="5">v5</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="6">v6</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -206,7 +206,10 @@
   async function loadUpdates() {
     ulist.textContent = ""; mlog.textContent = "Loading…";
     try {
-      var items = (await gh("/contents/updates?ref=" + branch)).filter(function (f) { return /\.md$/.test(f.name); });
+      var items;
+      try { items = await gh("/contents/updates?ref=" + branch); }
+      catch (e) { if (/ 404/.test(e.message)) items = []; else throw e; }   // folder gone = no updates
+      items = items.filter(function (f) { return /\.md$/.test(f.name); });
       var rows = await Promise.all(items.map(async function (f) {
         var d = await gh("/contents/" + f.path + "?ref=" + branch);
         return { path: f.path, meta: fm(utf8b64dec(d.content)) };

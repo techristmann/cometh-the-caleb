@@ -2,6 +2,7 @@
   "site_title": "Cometh the Caleb!",
   "baby_name": "Caleb Luiz Christmann",
   "due_date": "2026-11-03",
+  "labor": false,
   "arrived": false,
   "arrival": {
     "date": "",

@@ -239,11 +239,15 @@ def render(cfg, posts, photo_sizes):
   <div class="winner" id="winner" hidden></div>
 </section>"""
     else:
-        due = cfg.get("due_date", "")
+        due, nm = cfg.get("due_date", ""), e(cfg.get("baby_name"))
+        if cfg.get("labor"):
+            status = f'<p class="labor on"><span class="dot"></span>{t("In active labor", "Em trabalho de parto ativo")}</p>'
+        else:
+            status = f'<p class="labor"><span class="dot"></span>{t("Not in active labor", "Ainda não está em trabalho de parto ativo")}</p>'
         hero = f"""<section class="banner waiting">
-  <p class="eyebrow">{t(e(cfg.get('baby_name')) + " is coming", e(cfg.get('baby_name')) + " está chegando")}</p>
-  <div class="count"><span id="days">–</span><small id="days-label"></small></div>
-  <p class="due">{t("Due " + e(fmt_date(due)), "Previsto para " + e(fmt_date(due, 'pt')))}</p>
+  <p class="due-line"><span class="nm">{nm}</span>
+    {t("is due " + e(fmt_date(due)), "tem data prevista para " + e(fmt_date(due, 'pt')))}</p>
+  {status}
 </section>"""
 
     cards = []

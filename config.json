@@ -3,10 +3,10 @@
   "baby_name": "Caleb Luiz Christmann",
   "due_date": "2026-11-03",
   "labor": false,
-  "arrived": false,
+  "arrived": true,
   "arrival": {
-    "date": "",
-    "time": "",
+    "date": "2026-11-04",
+    "time": "01:41",
     "weight": "",
     "length": "",
     "message": "He's here!"

@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="10">v10</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="11">v11</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -56,7 +56,7 @@
     <label>Title<input name="title" required maxlength="120" placeholder="He's here!"></label>
     <div class="row">
       <label>Date<input name="date" type="date" required></label>
-      <label>Time (optional)<input name="time" type="time"></label>
+      <label>Time<input name="time" type="time"></label>
     </div>
     <label>Update<textarea name="body" rows="7" placeholder="7 lb 4 oz, 20 inches. Mom and baby are doing great…"></textarea></label>
     <label>Photos<input id="photos" type="file" accept="image/*" multiple></label>
@@ -141,8 +141,14 @@
   var arrive = document.getElementById("arrive"), alog = document.getElementById("alog"), cfgSha = null;
   var labor = document.getElementById("labor"), llog = document.getElementById("llog"), lnow = document.getElementById("lnow");
   function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; labor.hidden = !t; if (t) { loadArrival(); loadUpdates(); } }
-  var today = new Date();
-  post.date.value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  function stampNow() {   // date + time default to right now (editable)
+    var iso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
+    post.date.value = iso.slice(0, 10); post.time.value = iso.slice(11, 16);
+  }
+  stampNow();
+  document.addEventListener("visibilitychange", function () {   // home-screen app reopened later: refresh the stamp
+    if (!document.hidden && !post.title.value && !post.body.value) stampNow();
+  });
   show();
 
   setup.addEventListener("submit", function (e) {
@@ -462,7 +468,7 @@
 
       log.textContent = "Published! ✅ It will appear on the site in 1–2 minutes.";
       post.reset(); files = []; document.getElementById("thumbs").textContent = "";
-      post.date.value = date;
+      stampNow();
       loadUpdates();
     } catch (err) {
       log.textContent = "Not published: " + err.message;

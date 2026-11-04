@@ -47,17 +47,44 @@ def _gtx(text):
     return "".join(seg[0] for seg in j[0] if seg and seg[0])
 
 
+def _mymemory(text):
+    """Backup translator (free, no key). Max ~500 characters per request, so go line by line."""
+    out = []
+    for line in text.split("\n"):
+        if not line.strip():
+            out.append(line)
+            continue
+        url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode({"q": line[:500], "langpair": "en|pt-BR"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            j = json.loads(r.read().decode("utf-8"))
+        if j.get("responseStatus") != 200 or j.get("quotaFinished"):
+            raise RuntimeError(j.get("responseDetails") or "MyMemory refused")
+        out.append(html.unescape(j["responseData"]["translatedText"]))
+    return "\n".join(out)
+
+
+_failed = [0]   # how many translations fell back to English (checked per update)
+
+
 def translate(text):
-    """Translate text to Portuguese. Falls back to the original if anything fails."""
+    """Translate text to Portuguese: Google, then MyMemory. Falls back to the original if both fail.
+    (Google often blocks GitHub's build servers, which is why the Post page now translates on the phone.)"""
     if not text or not text.strip():
         return text
     if text in _tcache:
         return _tcache[text]
-    try:
-        out = _gtx(text)
-    except Exception as ex:
-        print(f"  ! translation failed ({ex}); using English", file=sys.stderr)
-        out = text
+    out = None
+    for name, fn in (("Google", _gtx), ("MyMemory", _mymemory)):
+        try:
+            out = fn(text)
+            break
+        except Exception as ex:
+            print(f"  ! {name} translation failed ({ex})", file=sys.stderr)
+    if out is None:
+        print("  ! using English; visitors' browsers will translate it instead", file=sys.stderr)
+        _failed[0] += 1
+        return text
     _tcache[text] = out
     return out
 
@@ -147,10 +174,15 @@ def parse_post(path):
     if isinstance(photos, str):
         photos = [p.strip() for p in photos.split(",") if p.strip()]
     meta["photos"] = photos
+    for k in ("title", "title_pt"):   # the Post page writes JSON-style quotes
+        if isinstance(meta.get(k), str):
+            meta[k] = meta[k].replace('\\"', '"')
+    before = _failed[0]
     parts = PT_SPLIT.split(body, maxsplit=1)
     meta["body"] = parts[0].strip()
     meta["body_pt"] = parts[1].strip() if len(parts) > 1 else translate_md(meta["body"])
     meta["title_pt"] = meta.get("title_pt") or translate(meta["title"])
+    meta["needs_pt"] = _failed[0] > before
     meta["slug"] = path.stem
     return meta
 
@@ -262,7 +294,7 @@ def render(cfg, posts, photo_sizes):
             imgs.append(f'<a href="photos/{e(wn)}" target="_blank"><img src="photos/{e(wn)}" '
                         f'width="{w}" height="{h}" loading="lazy" alt=""></a>')
         gallery = f'<div class="gallery n{min(len(imgs), 3)}">{"".join(imgs)}</div>' if imgs else ""
-        cards.append(f"""<article class="update" id="{e(p['slug'])}">
+        cards.append(f"""<article class="update" id="{e(p['slug'])}"{' data-needs-pt' if p.get('needs_pt') else ''}>
   <time datetime="{e(p['date'])}">{t(e(fmt_date(p['date'])), e(fmt_date(p['date'], 'pt')))}</time>
   <h2>{t(e(p['title']), e(p['title_pt']))}</h2>
   {gallery}

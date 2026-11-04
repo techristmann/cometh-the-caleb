@@ -13,7 +13,12 @@ Wishes are never translated.
 
 Run locally:  python3 build.py   (needs Pillow; pillow-heif for iPhone HEIC files)
 """
-import html, json, re, shutil, sys, urllib.parse, urllib.request
+import html, json, re, shutil, subprocess, sys, urllib.parse, urllib.request
+try:
+    from zoneinfo import ZoneInfo
+    LOCAL_TZ = ZoneInfo("America/Chicago")   # Arkansas
+except Exception:
+    LOCAL_TZ = None
 from datetime import datetime
 from pathlib import Path
 
@@ -150,6 +155,27 @@ def markdown(md):
 
 
 # ---------- front matter ----------
+def published_at(path):
+    """When this update file was first committed, in Arkansas time (needs full git history)."""
+    try:
+        out = subprocess.run(["git", "log", "--diff-filter=A", "--format=%cI", "--", str(path)],
+                             cwd=ROOT, capture_output=True, text=True, timeout=20).stdout.split()
+        if not out:
+            return None
+        dt = datetime.fromisoformat(out[-1])
+        return dt.astimezone(LOCAL_TZ) if LOCAL_TZ else dt
+    except Exception:
+        return None
+
+
+def fmt_time(s, lang="en"):
+    hm = parse_time(s)
+    if not hm:
+        return ""
+    h, m = hm
+    return f"{h:02d}:{m:02d}" if lang == "pt" else f"{(h % 12) or 12}:{m:02d} {'AM' if h < 12 else 'PM'}"
+
+
 def parse_post(path):
     raw = path.read_text(encoding="utf-8")
     meta, body = {}, raw
@@ -184,6 +210,10 @@ def parse_post(path):
     meta["title_pt"] = meta.get("title_pt") or translate(meta["title"])
     meta["needs_pt"] = _failed[0] > before
     meta["slug"] = path.stem
+    if not meta.get("time"):   # older posts have no time: use when the file was first published
+        when = published_at(path)
+        if when and when.date().isoformat() == meta["date"]:
+            meta["time"] = when.strftime("%H:%M")
     return meta
 
 
@@ -295,7 +325,8 @@ def render(cfg, posts, photo_sizes):
                         f'width="{w}" height="{h}" loading="lazy" alt=""></a>')
         gallery = f'<div class="gallery n{min(len(imgs), 3)}">{"".join(imgs)}</div>' if imgs else ""
         cards.append(f"""<article class="update" id="{e(p['slug'])}"{' data-needs-pt' if p.get('needs_pt') else ''}>
-  <time datetime="{e(p['date'])}">{t(e(fmt_date(p['date'])), e(fmt_date(p['date'], 'pt')))}</time>
+  <time datetime="{e(p['date'])}">{t(e(fmt_date(p['date'])) + (' · ' + fmt_time(p.get('time')) if fmt_time(p.get('time')) else ''),
+                                     e(fmt_date(p['date'], 'pt')) + (' · ' + fmt_time(p.get('time'), 'pt') if fmt_time(p.get('time')) else ''))}</time>
   <h2>{t(e(p['title']), e(p['title_pt']))}</h2>
   {gallery}
   <div class="body"><div class="l-en">{markdown(p['body'])}</div><div class="l-pt" lang="pt-BR">{markdown(p['body_pt'])}</div></div>

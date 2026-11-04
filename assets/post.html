@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="9">v9</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="10">v10</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -405,6 +405,27 @@
   document.getElementById("wforget").onclick = function () { wstore.del(); loadWishes(); };
   loadWishes();
 
+  // English -> Portuguese, line by line so lists and headings keep their shape. null if it fails.
+  async function toPortuguese(title, body) {
+    try {
+      var lines = body ? body.split("\n") : [], jobs = [];
+      lines.forEach(function (l, i) {
+        var m = /^(\s*(?:#+\s*|[-*]\s+)?)(.*)$/.exec(l);
+        if (m[2].trim()) jobs.push({ i: i, pre: m[1], txt: m[2] });
+      });
+      var src = [title].concat(jobs.map(function (j) { return j.txt; }));
+      var r = await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=pt&dt=t", {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "q=" + encodeURIComponent(src.join("\n")) });
+      if (!r.ok) return null;
+      var j = await r.json();
+      var out = j[0].map(function (s) { return s[0] || ""; }).join("").split("\n");
+      if (out.length !== src.length) return null;
+      jobs.forEach(function (jb, k) { lines[jb.i] = jb.pre + out[k + 1].trim(); });
+      return { title: out[0].trim(), body: lines.join("\n") };
+    } catch (e) { return null; }
+  }
+
   post.addEventListener("submit", async function (e) {
     e.preventDefault();
     var btn = document.getElementById("go"); btn.disabled = true;
@@ -422,9 +443,13 @@
         names.push(name);
         tree.push({ path: "photos/" + name, mode: "100644", type: "blob", sha: blob.sha });
       }
-      var md = "---\ntitle: " + JSON.stringify(title) + "\ndate: " + date + "\n" + (time ? "time: \"" + time + "\"\n" : "") +
+      var bodyTxt = String(f.get("body") || "").trim();
+      log.textContent = "Translating to Portuguese…";
+      var pt = await toPortuguese(title, bodyTxt);   // done on the phone: GitHub's servers get blocked
+      var md = "---\ntitle: " + JSON.stringify(title) + "\n" + (pt ? "title_pt: " + JSON.stringify(pt.title) + "\n" : "") +
+        "date: " + date + "\n" + (time ? "time: \"" + time + "\"\n" : "") +
         (names.length ? "photos:\n" + names.map(function (n) { return "  - " + n + "\n"; }).join("") : "") +
-        "---\n\n" + String(f.get("body") || "").trim() + "\n";
+        "---\n\n" + bodyTxt + "\n" + (pt && bodyTxt ? "\n=== pt ===\n\n" + pt.body + "\n" : "");
       var mdBlob = await gh("/git/blobs", { method: "POST", body: { content: b64utf8(md), encoding: "base64" } });
       tree.push({ path: "updates/" + slug + "-" + stamp + ".md", mode: "100644", type: "blob", sha: mdBlob.sha });
 

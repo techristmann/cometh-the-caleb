@@ -275,13 +275,44 @@
     if (banner) banner.addEventListener("click", party);
   }
 
+  // ---- backup translation: if the build couldn't translate an update, the visitor's browser does it ----
+  var filled = false;
+  function plain(node) {   // text of one block, with <br> kept as a space
+    var d = document.createElement("div"); d.innerHTML = node.innerHTML.replace(/<br\s*\/?>/gi, " ");
+    return d.textContent.replace(/\s+/g, " ").trim();
+  }
+  function gtx(lines) {
+    return fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=pt&dt=t", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "q=" + encodeURIComponent(lines.join("\n"))
+    }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) { return j[0].map(function (s) { return s[0] || ""; }).join("").split("\n"); });
+  }
+  function fillPt() {
+    if (filled || lang() !== "pt") return;
+    filled = true;
+    document.querySelectorAll("article.update[data-needs-pt]").forEach(function (a) {
+      var els = [].slice.call(a.querySelectorAll("h2 .l-pt, .body .l-pt p, .body .l-pt li, .body .l-pt h3"));
+      if (!els.length) return;
+      var src = els.map(plain), key = "pt:" + a.id + ":" + src.join("|").length, got = null;
+      try { got = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
+      function apply(out) { els.forEach(function (el, i) { if (out[i]) el.textContent = out[i].trim(); }); }
+      if (got && got.length === els.length) { apply(got); return; }
+      gtx(src).then(function (out) {
+        if (out.length !== els.length) return;
+        apply(out);
+        try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+      }).catch(function () {});   // no luck: the English stays
+    });
+  }
+
   // ---- language switch ----
   function applyLang(l, save) {
     root.className = root.className.replace(/\blang-\w+\b/g, "").trim() + " lang-" + l;
     root.lang = l === "pt" ? "pt-BR" : "en";
     if (save) { try { localStorage.setItem("lang", l); } catch (e) {} }
     document.querySelectorAll("[data-ph-" + l + "]").forEach(function (i) { i.placeholder = i.getAttribute("data-ph-" + l); });
-    countdown();
+    countdown(); fillPt();
     if (list) list.querySelectorAll(".who").forEach(stamp);
     if (moreEl && msgKey) note(msgKey);
     if (guesses.length || (gSec && !gSec.hidden)) { drawGuesses(); drawWinner(); }

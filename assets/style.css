@@ -74,6 +74,18 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 56px; }
 .banner .count small:empty { display: none; }
 .banner .count small { display: block; font: 15px var(--sans); opacity: .85; margin-top: 8px; }
 .banner .due { margin: 8px 0 0; opacity: .9; }
+.banner.waiting { padding: 26px 18px 22px; }
+.due-line { margin: 0; font-size: 17px; line-height: 1.45; }
+.due-line .nm { display: block; font: 600 21px/1.2 var(--serif); color: var(--mustard); margin-bottom: 2px; }
+.labor {
+  display: inline-flex; align-items: center; gap: 10px; margin: 18px 0 0; padding: 8px 18px; border-radius: 999px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); font-weight: 600; font-size: 15px;
+}
+.labor .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--sage); flex: none; }
+.labor.on { background: var(--rust); border-color: var(--rust); color: #fff; }
+.labor.on .dot { background: #fff; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0); } }
+@media (prefers-reduced-motion: reduce) { .labor.on .dot { animation: none; } }
 .banner .leaves { margin-bottom: 6px; }
 .banner.arrived h2 { font: 600 clamp(32px, 9vw, 46px)/1.1 var(--serif); margin: 4px 0; }
 .banner .name { font: italic 26px var(--serif); margin: 0 0 14px; color: var(--mustard); }

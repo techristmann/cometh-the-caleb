@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="8">v8</span></p>
+<header><h1>Post an update</h1><p class="tagline">Only works with your private GitHub key · <span id="ver" data-version="9">v9</span></p>
   <p id="upd" hidden><button type="button" id="updbtn" style="width:auto;padding:6px 14px">New version available. Tap to update</button></p>
   <p class="small"><button type="button" class="linkbtn" id="reload">Refresh page</button></p></header>
 <main>
@@ -41,6 +41,16 @@
     <button type="submit">Save key on this phone</button>
     <p class="small">The key is saved only in this browser on this device. It is never put in the website or the repo.</p>
   </form>
+
+  <section id="labor" hidden>
+    <h2>Labor status</h2>
+    <p class="small">Shows on the site under the due date. Current: <b id="lnow">…</b></p>
+    <div class="row">
+      <button type="button" id="lno" style="background:var(--sage);color:#1d2a1a">Not in active labor</button>
+      <button type="button" id="lyes" style="background:var(--rust)">In active labor</button>
+    </div>
+    <p id="llog" class="small" role="status"></p>
+  </section>
 
   <form id="post" hidden>
     <label>Title<input name="title" required maxlength="120" placeholder="He's here!"></label>
@@ -129,7 +139,8 @@
   var wlist = document.getElementById("wlist"), wlog = document.getElementById("wlog"), wpass = document.getElementById("wpass");
   var manage = document.getElementById("manage"), ulist = document.getElementById("ulist"), mlog = document.getElementById("mlog");
   var arrive = document.getElementById("arrive"), alog = document.getElementById("alog"), cfgSha = null;
-  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; if (t) { loadArrival(); loadUpdates(); } }
+  var labor = document.getElementById("labor"), llog = document.getElementById("llog"), lnow = document.getElementById("lnow");
+  function show() { var t = store.get(); setup.hidden = !!t; post.hidden = !t; arrive.hidden = !t; manage.hidden = !t; labor.hidden = !t; if (t) { loadArrival(); loadUpdates(); } }
   var today = new Date();
   post.date.value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   show();
@@ -195,11 +206,28 @@
   async function loadArrival() {
     try {
       var c = await getCfg(), a = c.arrival || {};
+      lnow.textContent = c.labor ? "In active labor" : "Not in active labor";
       arrive.arrived.checked = !!c.arrived; arrive.adate.value = a.date || "";
       arrive.atime.value = to24(a.time); arrive.weight.value = a.weight || "";
       arrive.length.value = a.length || ""; arrive.message.value = a.message || "";
     } catch (err) { alog.textContent = "Couldn't load current details: " + err.message; }
   }
+  async function setLabor(on) {
+    var b1 = document.getElementById("lno"), b2 = document.getElementById("lyes");
+    b1.disabled = b2.disabled = true; llog.textContent = "Saving…";
+    try {
+      var c = await getCfg();
+      c.labor = on;
+      await gh("/contents/config.json", { method: "PUT", body: { message: on ? "In active labor" : "Not in active labor",
+        content: b64utf8(JSON.stringify(c, null, 2) + "\n"), sha: cfgSha, branch: branch } });
+      lnow.textContent = on ? "In active labor" : "Not in active labor";
+      llog.textContent = "Saved ✅ The site updates in a few minutes.";
+    } catch (err) { llog.textContent = "Not saved: " + err.message; }
+    b1.disabled = b2.disabled = false;
+  }
+  document.getElementById("lno").onclick = function () { setLabor(false); };
+  document.getElementById("lyes").onclick = function () { setLabor(true); };
+
   arrive.addEventListener("submit", async function (e) {
     e.preventDefault();
     var btn = document.getElementById("ago"); btn.disabled = true;
